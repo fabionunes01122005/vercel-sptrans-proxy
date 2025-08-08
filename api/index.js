@@ -91,6 +91,7 @@ async function getTrafficData() {
             origin: { location: { latLng: { latitude: rota.start.lat, longitude: rota.start.lng } } },
             destination: { location: { latLng: { latitude: rota.end.lat, longitude: rota.end.lng } } },
             travelMode: 'DRIVE',
+            routingPreference: 'TRAFFIC_AWARE'
         };
         try {
             const response = await axios.post(GOOGLE_ROUTES_API_URL, body, { headers });
