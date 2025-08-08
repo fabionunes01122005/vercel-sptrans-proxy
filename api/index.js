@@ -7,7 +7,7 @@ const Maps_API_KEY = process.env.Maps_API_KEY;
 // URLs das APIs externas
 const SPTRANS_API_URL = 'https://api.olhovivo.sptrans.com.br/v2.1';
 const GOOGLE_ROUTES_API_URL = 'https://routes.googleapis.com/directions/v2:computeRoutes';
-const METRO_CPTM_API_URL = 'https://ale-jr-api-status-metro-sp-production.up.railway.app/getLinesStatus';
+const METRO_CPTM_API_URL = 'https://www.diretodostrens.com.br/api/status';
 
 // Variáveis de cache para otimizar as chamadas
 let spTansCookie = null;
@@ -121,12 +121,12 @@ async function getMetroCptmStatus() {
     console.log("LOG: Buscando status do Metrô/CPTM...");
     try {
         const response = await axios.get(METRO_CPTM_API_URL);
-        const linhasFiltradas = response.data.filter(linha => {
-            const numero = parseInt(linha.number, 10);
-            return (numero >= 1 && numero <= 15);
-        });
+        const linhas = response.data.map(linha => ({
+            name: `Linha ${linha.codigo}`,
+            statusDescription: linha.situacao
+        }));
         console.log("LOG: Status do Metrô/CPTM recebido com sucesso.");
-        return linhasFiltradas;
+        return linhas;
     } catch (error) {
         console.error("LOG ERROR: Erro ao buscar status do Metrô/CPTM:", error.message);
         return [];
