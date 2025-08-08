@@ -1,124 +1,16 @@
 const axios = require('axios');
 
-// Pega as chaves das variáveis de ambiente
 const SPTRANS_TOKEN = process.env.SPTRANS_TOKEN;
 const Maps_API_KEY = process.env.Maps_API_KEY;
+// ... (outras constantes e variáveis de cache)
 
-// URLs das APIs externas
-const SPTRANS_API_URL = 'https://api.olhovivo.sptrans.com.br/v2.1';
-const GOOGLE_ROUTES_API_URL = 'https://routes.googleapis.com/directions/v2:computeRoutes';
-
-// Variáveis de cache para otimizar as chamadas
-let spTansCookie = null;
-let painelCache = null;
-let painelCacheTime = null;
-
-// ===================================================================
-// FUNÇÕES DE COLETA DE DADOS (COM LOGS DETALHADOS)
-// ===================================================================
-
-async function autenticarSPTrans() {
-    console.log("LOG: Tentando autenticar com SPTrans...");
-    if (!SPTRANS_TOKEN) {
-        console.error("LOG ERROR: Token da SPTrans não configurado.");
-        throw new Error("Token da SPTrans não configurado.");
-    }
-    try {
-        const response = await axios.post(`${SPTRANS_API_URL}/Login/Autenticar?token=${SPTRANS_TOKEN}`, {});
-        if (response.data !== true) {
-            console.error("LOG ERROR: Falha na autenticação. Token pode ser inválido.");
-            throw new Error("Token da SPTrans é inválido ou expirou.");
-        }
-        spTansCookie = response.headers['set-cookie'][0];
-        console.log('LOG: Autenticação com SPTrans renovada com sucesso!');
-    } catch (error) {
-        spTansCookie = null; // Limpa o cookie em caso de falha
-        console.error('LOG ERROR: Erro crítico ao autenticar com SPTrans:', error.message);
-        throw error; // Propaga o erro para ser tratado no handler principal
-    }
-}
-
-function getRodizioData() {
-    console.log("LOG: Calculando dados do rodízio...");
-    const dias = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
-    const hoje = new Date();
-    hoje.setHours(hoje.getHours() - 3); // Ajusta para o fuso horário de São Paulo (UTC-3)
-    const diaDaSemana = hoje.getDay(); // Domingo = 0, Segunda = 1, ...
-    let placas = ['N/A'];
-    switch (diaDaSemana) {
-        case 1: placas = ['1', '2']; break;
-        case 2: placas = ['3', '4']; break;
-        case 3: placas = ['5', '6']; break;
-        case 4: placas = ['7', '8']; break;
-        case 5: placas = ['9', '0']; break;
-    }
-    console.log("LOG: Dados do rodízio calculados.");
-    return { dia: dias[diaDaSemana], placas: placas };
-}
-
-async function getBusSpeedData() {
-    console.log("LOG: Buscando dados de velocidade dos ônibus...");
-    try {
-        const response = await axios.get(`${SPTRANS_API_URL}/Corredor`, { headers: { 'Cookie': spTansCookie } });
-        console.log("LOG: Dados de corredores recebidos com sucesso da SPTrans.");
-        return { centroBairro: 18, bairroCentro: 19 }; // Retornando dados de exemplo
-    } catch (error) {
-        console.error("LOG ERROR: Erro ao buscar dados de velocidade dos ônibus:", error.message);
-        return { centroBairro: '--', bairroCentro: '--' };
-    }
-}
-
-async function getTrafficData() {
-    console.log("LOG: Buscando dados de tráfego do Google...");
-    if (!Maps_API_KEY) {
-        console.error("LOG ERROR: Chave da API do Google Maps não configurada!");
-        return { norte: {km:0}, sul: {km:0}, leste: {km:0}, oeste: {km:0}, centro: {km:0} };
-    }
-    const rotasParaMonitorar = [
-        { zona: 'sul', nome: 'Av. 23 de Maio', distanciaKm: 5.5, start: { lat: -23.5786, lng: -46.6549 }, end: { lat: -23.5489, lng: -46.6325 } },
-        { zona: 'oeste', nome: 'Marginal Pinheiros', distanciaKm: 8.0, start: { lat: -23.5862, lng: -46.7118 }, end: { lat: -23.5559, lng: -46.6908 } },
-        { zona: 'leste', nome: 'Radial Leste', distanciaKm: 7.0, start: { lat: -23.5430, lng: -46.5740 }, end: { lat: -23.5448, lng: -46.6198 } },
-        { zona: 'norte', nome: 'Marginal Tietê', distanciaKm: 6.5, start: { lat: -23.5246, lng: -46.6811 }, end: { lat: -23.5242, lng: -46.6235 } },
-        { zona: 'centro', nome: 'Av. Paulista', distanciaKm: 2.8, start: { lat: -23.5714, lng: -46.6412 }, end: { lat: -23.5526, lng: -46.6642 } }
-    ];
-    const promessasDeRotas = rotasParaMonitorar.map(async (rota) => {
-        const headers = {
-            'Content-Type': 'application/json',
-            'X-Goog-Api-Key': Maps_API_KEY,
-            'X-Goog-FieldMask': 'routes.duration,routes.staticDuration'
-        };
-        const body = {
-            origin: { location: { latLng: { latitude: rota.start.lat, longitude: rota.start.lng } } },
-            destination: { location: { latLng: { latitude: rota.end.lat, longitude: rota.end.lng } } },
-            travelMode: 'DRIVE',
-        };
-        try {
-            const response = await axios.post(GOOGLE_ROUTES_API_URL, body, { headers });
-            const routeInfo = response.data.routes[0];
-            const duracaoComTransito = parseInt(routeInfo.duration.slice(0, -1));
-            const duracaoSemTransito = parseInt(routeInfo.staticDuration.slice(0, -1));
-            if (duracaoSemTransito === 0) return { zona: rota.zona, km: 0 };
-            const atrasoPercentual = (duracaoComTransito - duracaoSemTransito) / duracaoSemTransito;
-            const kmDeLentidao = Math.round(rota.distanciaKm * atrasoPercentual * 2.5);
-            return { zona: rota.zona, km: Math.max(0, kmDeLentidao) };
-        } catch (error) {
-            console.error(`LOG ERROR: Erro ao buscar dados da rota ${rota.nome}:`, error.response?.data?.error?.message || error.message);
-            return { zona: rota.zona, km: 0 };
-        }
-    });
-    const resultados = await Promise.all(promessasDeRotas);
-    const lentidaoPorRegiao = resultados.reduce((acc, current) => {
-        acc[current.zona] = { km: current.km };
-        return acc;
-    }, {});
-    console.log("LOG: Dados de tráfego do Google coletados.");
-    return lentidaoPorRegiao;
-}
+// ... (funções autenticarSPTrans, getRodizioData, getBusSpeedData, getTrafficData) ...
 
 // ===================================================================
 // FUNÇÃO SERVERLESS PRINCIPAL (HANDLER)
 // ===================================================================
 module.exports = async (req, res) => {
+    // Define os headers de CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
@@ -129,47 +21,71 @@ module.exports = async (req, res) => {
 
     const { path } = req.query;
 
-    if (path === '/painel-transito') {
-        if (painelCache && painelCacheTime && (new Date() - painelCacheTime < 3 * 60 * 1000)) {
-            console.log("LOG: Servindo dados do painel a partir do cache.");
-            return res.status(200).json(painelCache);
+    try {
+        // Garante a autenticação com a SPTrans para qualquer chamada
+        if (!spTansCookie) {
+            await autenticarSPTrans();
         }
-        try {
-            console.log("LOG: Função principal iniciada. Buscando novos dados...");
-            if (!spTansCookie) await autenticarSPTrans();
 
-            console.log("LOG: Buscando todos os dados em paralelo...");
-            const [trafficData, busData, rodizioData] = await Promise.all([
-                getTrafficData(),
-                getBusSpeedData(),
-                getRodizioData()
-            ]);
-            console.log("LOG: Todos os dados foram coletados.");
+        // --- LÓGICA DE ROTEAMENTO ---
+        if (path === '/painel-transito') {
+            // Se a chamada for para o painel, executa a lógica do painel
+            const painelData = await getPainelData();
+            return res.status(200).json(painelData);
 
-            const responseData = {
-                lentidaoPorRegiao: trafficData,
-                velocidadeOnibus: busData,
-                rodizio: rodizioData,
-                ultimaAtualizacao: new Date().toISOString()
-            };
-
-            painelCache = responseData;
-            painelCacheTime = new Date();
-            console.log("LOG: Enviando resposta de sucesso.");
-            return res.status(200).json(responseData);
-
-        } catch (error) {
-            console.error("ERRO FATAL NO HANDLER:", error.message);
-            if (error.response) {
-                console.error("Detalhes do erro (axios):", error.response.data);
-            }
-            painelCache = null;
-            return res.status(503).json({ 
-                error: "Erro ao processar a requisição no servidor.", 
-                details: error.message 
+        } else if (path) {
+            // Se for qualquer outro 'path', atua como um proxy genérico
+            delete req.query.path;
+            const params = new URLSearchParams(req.query).toString();
+            const apiUrl = `${SPTRANS_API_URL}${path}?${params}`;
+            
+            const response = await axios.get(apiUrl, {
+                headers: { 'Cookie': spTansCookie }
             });
+            return res.status(200).json(response.data);
+
+        } else {
+            // Se nenhum 'path' for fornecido
+            return res.status(400).json({ error: "O parâmetro 'path' é obrigatório." });
         }
+        // --- FIM DA LÓGICA DE ROTEAMENTO ---
+
+    } catch (error) {
+        console.error("ERRO GERAL NO HANDLER:", error.message);
+        if (error.response) {
+            console.error("Detalhes do erro (axios):", error.response.data);
+        }
+        return res.status(503).json({ 
+            error: "Erro ao processar a requisição no servidor.", 
+            details: error.message 
+        });
+    }
+};
+
+// Função auxiliar para organizar a lógica do painel e o cache
+async function getPainelData() {
+    if (painelCache && painelCacheTime && (new Date() - painelCacheTime < 3 * 60 * 1000)) {
+        console.log("Servindo dados do painel a partir do cache.");
+        return painelCache;
     }
 
-    return res.status(404).json({ error: "Endpoint não encontrado. Use /api?path=/painel-transito" });
-};
+    console.log("Buscando novos dados para o painel...");
+    const [trafficData, busData, rodizioData] = await Promise.all([
+        getTrafficData(),
+        getBusSpeedData(),
+        getRodizioData()
+    ]);
+
+    const responseData = {
+        lentidaoPorRegiao: trafficData,
+        velocidadeOnibus: busData,
+        rodizio: rodizioData,
+        ultimaAtualizacao: new Date().toISOString()
+    };
+
+    painelCache = responseData;
+    painelCacheTime = new Date();
+    return responseData;
+}
+
+// ... (Cole aqui as funções completas: autenticarSPTrans, getRodizioData, getBusSpeedData, getTrafficData)
