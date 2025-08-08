@@ -117,7 +117,7 @@ async function getTrafficData() {
     return lentidaoPorRegiao;
 }
 
-async function getMetroCptmStatus() {
+async function getMetroCptm-status() {
     console.log("LOG: Buscando status do Metrô/CPTM...");
     try {
         const METRO_CPTM_API_URL_FINAL = 'https://www.diretodostrens.com.br/api/status';
@@ -126,12 +126,9 @@ async function getMetroCptmStatus() {
         };
 
         const response = await axios.get(METRO_CPTM_API_URL_FINAL, { headers });
-
-        // --- INÍCIO DO LOG DE DEPURAÇÃO ---
-        // Este log mostrará a resposta completa da API no console da Vercel
-        console.log("LOG DEBUG: Resposta crua da API do Metrô/CPTM:", JSON.stringify(response.data, null, 2));
-        // --- FIM DO LOG DE DEPURAÇÃO ---
-
+        
+        // Removemos o console.log da resposta crua
+        
         const linhas = response.data.map(item => ({
             name: `Linha ${item.line || item.codigo}`,
             statusDescription: item.status || item.situacao
@@ -144,7 +141,6 @@ async function getMetroCptmStatus() {
         return [];
     }
 }
-
 // ===================================================================
 // FUNÇÃO SERVERLESS PRINCIPAL (HANDLER)
 // ===================================================================
