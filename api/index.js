@@ -7,6 +7,7 @@ const Maps_API_KEY = process.env.Maps_API_KEY;
 // URLs das APIs externas
 const SPTRANS_API_URL = 'https://api.olhovivo.sptrans.com.br/v2.1';
 const GOOGLE_ROUTES_API_URL = 'https://routes.googleapis.com/directions/v2:computeRoutes';
+const METRO_CPTM_API_URL = 'https://ale-jr-api-status-metro-sp-production.up.railway.app/getLinesStatus';
 
 // Variáveis de cache para otimizar as chamadas
 let spTansCookie = null;
@@ -16,26 +17,6 @@ let painelCacheTime = null;
 // ===================================================================
 // FUNÇÕES DE COLETA DE DADOS
 // ===================================================================
-
-async function getMetroCptmStatus() {
-    console.log("LOG: Buscando status do Metrô/CPTM...");
-    try {
-        // Usamos uma API aberta que compila os dados de status
-        const response = await axios.get('https://ale-jr-api-status-metro-sp-production.up.railway.app/getLinesStatus');
-
-        // Filtra apenas as linhas de Metrô (números 1-5, 15) e CPTM (números 7-13)
-        const linhasFiltradas = response.data.filter(linha => {
-            const numero = parseInt(linha.number, 10);
-            return (numero >= 1 && numero <= 15);
-        });
-
-        console.log("LOG: Status do Metrô/CPTM recebido com sucesso.");
-        return linhasFiltradas;
-    } catch (error) {
-        console.error("LOG ERROR: Erro ao buscar status do Metrô/CPTM:", error.message);
-        return []; // Retorna um array vazio em caso de erro
-    }
-}
 
 async function autenticarSPTrans() {
     console.log("LOG: Tentando autenticar com SPTrans...");
@@ -136,6 +117,22 @@ async function getTrafficData() {
     return lentidaoPorRegiao;
 }
 
+async function getMetroCptmStatus() {
+    console.log("LOG: Buscando status do Metrô/CPTM...");
+    try {
+        const response = await axios.get(METRO_CPTM_API_URL);
+        const linhasFiltradas = response.data.filter(linha => {
+            const numero = parseInt(linha.number, 10);
+            return (numero >= 1 && numero <= 15);
+        });
+        console.log("LOG: Status do Metrô/CPTM recebido com sucesso.");
+        return linhasFiltradas;
+    } catch (error) {
+        console.error("LOG ERROR: Erro ao buscar status do Metrô/CPTM:", error.message);
+        return [];
+    }
+}
+
 // ===================================================================
 // FUNÇÃO SERVERLESS PRINCIPAL (HANDLER)
 // ===================================================================
@@ -160,10 +157,11 @@ module.exports = async (req, res) => {
             if (!spTansCookie) await autenticarSPTrans();
 
             console.log("LOG: Buscando todos os dados em paralelo...");
-            const [trafficData, busData, rodizioData] = await Promise.all([
+            const [trafficData, busData, rodizioData, metroCptmStatus] = await Promise.all([
                 getTrafficData(),
                 getBusSpeedData(),
-                getRodizioData()
+                getRodizioData(),
+                getMetroCptmStatus()
             ]);
             console.log("LOG: Todos os dados foram coletados.");
 
