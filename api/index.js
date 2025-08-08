@@ -120,11 +120,17 @@ async function getTrafficData() {
 async function getMetroCptmStatus() {
     console.log("LOG: Buscando status do Metrô/CPTM...");
     try {
-        const response = await axios.get(METRO_CPTM_API_URL);
+        const METRO_CPTM_API_URL_FINAL = 'https://www.diretodostrens.com.br/api/status';
+        const response = await axios.get(METRO_CPTM_API_URL_FINAL);
+
+        // --- INÍCIO DA CORREÇÃO ---
+        // A API agora retorna 'line' e 'status'. Ajustamos o mapeamento.
         const linhas = response.data.map(linha => ({
-            name: `Linha ${linha.codigo}`,
-            statusDescription: linha.situacao
+            name: `Linha ${linha.line}`, // Corrigido de 'codigo' para 'line'
+            statusDescription: linha.status  // Corrigido de 'situacao' para 'status'
         }));
+        // --- FIM DA CORREÇÃO ---
+
         console.log("LOG: Status do Metrô/CPTM recebido com sucesso.");
         return linhas;
     } catch (error) {
