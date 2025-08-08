@@ -171,6 +171,7 @@ module.exports = async (req, res) => {
                 lentidaoPorRegiao: trafficData,
                 velocidadeOnibus: busData,
                 rodizio: rodizioData,
+                metroCptm: metroCptmStatus,
                 ultimaAtualizacao: new Date().toISOString()
             };
 
