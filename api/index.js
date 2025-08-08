@@ -120,22 +120,38 @@ async function getTrafficData() {
 async function getMetroCptmStatus() {
     console.log("LOG: Buscando status do Metrô/CPTM...");
     try {
-        const METRO_CPTM_API_URL_FINAL = 'https://www.diretodostrens.com.br/api/status';
+        // --- INÍCIO DA MELHORIA ---
+        // Mapeamento de número da linha para nome
+        const nomesDasLinhas = {
+            '1': 'Azul',
+            '2': 'Verde',
+            '3': 'Vermelha',
+            '4': 'Amarela',
+            '5': 'Lilás',
+            '7': 'Rubi',
+            '8': 'Diamante',
+            '9': 'Esmeralda',
+            '10': 'Turquesa',
+            '11': 'Coral',
+            '12': 'Safira',
+            '13': 'Jade',
+            '15': 'Prata'
+        };
+
         const headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         };
-
-        const response = await axios.get(METRO_CPTM_API_URL_FINAL, { headers });
-
-        // --- INÍCIO DO LOG DE DEPURAÇÃO ---
-        // Este log mostrará a resposta completa da API no console da Vercel
-        console.log("LOG DEBUG: Resposta crua da API do Metrô/CPTM:", JSON.stringify(response.data, null, 2));
-        // --- FIM DO LOG DE DEPURAÇÃO ---
-
-        const linhas = response.data.map(item => ({
-            name: `Linha ${item.line || item.codigo}`,
-            statusDescription: item.status || item.situacao
-        }));
+        const response = await axios.get(METRO_CPTM_API_URL, { headers });
+        
+        const linhas = response.data.map(item => {
+            const numeroLinha = item.line || item.codigo;
+            const nomeLinha = nomesDasLinhas[numeroLinha] || `Linha ${numeroLinha}`; // Usa o nome do mapa ou o padrão
+            return {
+                name: `${numeroLinha}-${nomeLinha}`,
+                statusDescription: item.status || item.situacao
+            };
+        });
+        // --- FIM DA MELHORIA ---
 
         console.log("LOG: Status do Metrô/CPTM recebido com sucesso.");
         return linhas.filter(l => l.statusDescription);
@@ -144,6 +160,7 @@ async function getMetroCptmStatus() {
         return [];
     }
 }
+
 // ===================================================================
 // FUNÇÃO SERVERLESS PRINCIPAL (HANDLER)
 // ===================================================================
