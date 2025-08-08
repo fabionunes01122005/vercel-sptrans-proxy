@@ -1,0 +1,7 @@
+{
+  "name": "vercel-sptrans-proxy",
+  "version": "1.0.0",
+  "dependencies": {
+    "axios": "^1.7.2"
+  }
+}
