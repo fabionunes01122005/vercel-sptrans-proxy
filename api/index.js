@@ -121,16 +121,24 @@ async function getMetroCptmStatus() {
     console.log("LOG: Buscando status do Metrô/CPTM...");
     try {
         const METRO_CPTM_API_URL_FINAL = 'https://www.diretodostrens.com.br/api/status';
-        const response = await axios.get(METRO_CPTM_API_URL_FINAL);
-        
-        // CÓDIGO ROBUSTO que funciona com as variações da API
+        const headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        };
+
+        const response = await axios.get(METRO_CPTM_API_URL_FINAL, { headers });
+
+        // --- INÍCIO DO LOG DE DEPURAÇÃO ---
+        // Este log mostrará a resposta completa da API no console da Vercel
+        console.log("LOG DEBUG: Resposta crua da API do Metrô/CPTM:", JSON.stringify(response.data, null, 2));
+        // --- FIM DO LOG DE DEPURAÇÃO ---
+
         const linhas = response.data.map(item => ({
-            name: `Linha ${item.line || item.codigo}`, // Usa 'line' se existir, senão 'codigo'
-            statusDescription: item.status || item.situacao // Usa 'status' se existir, senão 'situacao'
+            name: `Linha ${item.line || item.codigo}`,
+            statusDescription: item.status || item.situacao
         }));
 
         console.log("LOG: Status do Metrô/CPTM recebido com sucesso.");
-        return linhas.filter(l => l.statusDescription); // Retorna apenas linhas com status válido
+        return linhas.filter(l => l.statusDescription);
     } catch (error) {
         console.error("LOG ERROR: Erro ao buscar status do Metrô/CPTM:", error.message);
         return [];
