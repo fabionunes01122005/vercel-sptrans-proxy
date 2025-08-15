@@ -2,6 +2,7 @@
   "name": "vercel-sptrans-proxy",
   "version": "1.0.0",
   "dependencies": {
+    "@vercel/kv": "^3.0.0",
     "axios": "^1.7.2"
   }
 }
